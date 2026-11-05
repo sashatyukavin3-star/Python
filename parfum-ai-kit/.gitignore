@@ -3,3 +3,4 @@ leads.jsonl
 *.log
 __pycache__/
 *.pyc
+demo_leads.jsonl
