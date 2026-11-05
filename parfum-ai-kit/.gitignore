@@ -4,3 +4,4 @@ leads.jsonl
 __pycache__/
 *.pyc
 demo_leads.jsonl
+.env
