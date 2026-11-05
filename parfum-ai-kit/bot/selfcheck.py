@@ -20,6 +20,8 @@ from pathlib import Path
 from engine import Config, ConfigError, load_config
 from quiz_bot import Api
 
+NETWORK_MARKERS = ("SSL", "urlopen", "timed out", "Temporary failure", "Connection refused", "Name or service")
+
 CHECK = "✔"
 CROSS = "✖"
 WARN = "!"
@@ -78,10 +80,18 @@ def diagnose(api, config: Config, owner_chat_id: int | None = None, leads_file: 
                 "Telegram требует username с окончанием bot; переименуйте в @BotFather")
     except Exception as error:  # noqa: BLE001 — показываем любую причину человеческим текстом
         message = str(error)
-        hint = "проверьте токен в @BotFather (/mybots → API Token) и интернет на телефоне"
-        if "Unauthorized" in message or "401" in message:
-            hint = "токен отозван или скопирован с ошибкой: /revoke и новый токен в @BotFather"
-        add(False, "Telegram не принял токен", message[:200], hint)
+        if any(marker in message for marker in NETWORK_MARKERS):
+            add(
+                False,
+                "Нет связи с Telegram",
+                message[:200],
+                "проверьте интернет на телефоне; если включён VPN — попробуйте без него и наоборот",
+            )
+        else:
+            hint = "проверьте токен в @BotFather (/mybots → API Token)"
+            if "Unauthorized" in message or "401" in message:
+                hint = "токен отозван или скопирован с ошибкой: /revoke и новый токен в @BotFather"
+            add(False, "Telegram не принял токен", message[:200], hint)
 
     # 2. Конфиг
     add(True, "Конфиг читается", f"{config.steps} вопросов, {len(config.scents)} ароматов, бренд «{config.brand}»")
@@ -113,8 +123,13 @@ def diagnose(api, config: Config, owner_chat_id: int | None = None, leads_file: 
             )
             add(True, "Владельцу можно писать", f"id {owner_chat_id}", "проверьте Telegram — сообщение должно быть там")
         except Exception as error:  # noqa: BLE001
-            add(False, "Не удалось написать владельцу", str(error)[:200],
-                "откройте бота и нажмите /start, затем снова запустите проверку; id должен быть ваш, не канала")
+            message = str(error)
+            if any(marker in message for marker in NETWORK_MARKERS):
+                add(False, "Не удалось написать владельцу", message[:200],
+                    "сеть недоступна — проверьте интернет и VPN, затем повторите проверку")
+            else:
+                add(False, "Не удалось написать владельцу", message[:200],
+                    "откройте бота и нажмите /start, затем снова запустите проверку; id должен быть ваш, не канала")
 
     # 4. Файл заявок
     if leads_file is not None:

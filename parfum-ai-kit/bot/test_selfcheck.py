@@ -91,6 +91,18 @@ class DiagnoseTest(unittest.TestCase):
         token_fail = next(item for item in failed if item["title"] == "Telegram не принял токен")
         self.assertIn("revoke", token_fail["hint"])
 
+    def test_network_error_is_not_blamed_on_token(self):
+        class OfflineApi(FakeApi):
+            def call(self, method, **params):
+                raise RuntimeError("<urlopen error TLS/SSL connection has been closed (EOF)>")
+
+        results = diagnose(OfflineApi(), self.config, owner_chat_id=None, leads_file=self.leads)
+        titles = self.titles(results)
+        self.assertIn("Нет связи с Telegram", titles)
+        self.assertNotIn("Telegram не принял токен", titles)
+        offline = next(item for item in results if item["title"] == "Нет связи с Telegram")
+        self.assertIn("VPN", offline["hint"])
+
     def test_missing_owner_is_reported(self):
         results = diagnose(FakeApi(), self.config, owner_chat_id=None, leads_file=self.leads)
         self.assertIn("OWNER_CHAT_ID не задан", self.titles(results))
