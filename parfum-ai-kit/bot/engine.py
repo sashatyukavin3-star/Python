@@ -15,6 +15,13 @@ from typing import Any
 
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("config.json")
 
+# Ограничения Telegram на профиль бота
+MAX_NAME = 64
+MAX_SHORT_DESCRIPTION = 120
+MAX_DESCRIPTION = 512
+MAX_COMMAND = 32
+MAX_COMMAND_DESCRIPTION = 256
+
 
 class ConfigError(Exception):
     """Понятная ошибка в config.json, а не трейсбек на пол-экрана."""
@@ -30,6 +37,10 @@ class Config:
     questions: tuple[dict[str, Any], ...]
     owner_username: str = ""
     start_button: str = "Подобрать аромат"
+    profile_name: str = ""
+    short_description: str = ""
+    description: str = ""
+    commands: tuple[dict[str, str], ...] = ()
 
     @property
     def steps(self) -> int:
@@ -99,6 +110,37 @@ def load_config(path: Path | str | None = None) -> Config:
             )
         questions.append({"text": str(_require(question, "text", where)), "options": options})
 
+    profile_raw = raw.get("profile") or {}
+    if not isinstance(profile_raw, dict):
+        raise ConfigError("config.profile: ожидался объект с name/short_description/description/commands")
+
+    profile_name = str(profile_raw.get("name", ""))[:MAX_NAME]
+    short_description = str(profile_raw.get("short_description", ""))
+    description = str(profile_raw.get("description", ""))
+    if len(short_description) > MAX_SHORT_DESCRIPTION:
+        raise ConfigError(
+            f"profile.short_description: {len(short_description)} знаков, Telegram разрешает {MAX_SHORT_DESCRIPTION} — сократите"
+        )
+    if len(description) > MAX_DESCRIPTION:
+        raise ConfigError(
+            f"profile.description: {len(description)} знаков, Telegram разрешает {MAX_DESCRIPTION} — сократите"
+        )
+
+    commands: list[dict[str, str]] = []
+    for index, command in enumerate(profile_raw.get("commands") or [], start=1):
+        where = f"profile.commands[{index}]"
+        if not isinstance(command, dict):
+            raise ConfigError(f"{where}: ожидался объект с command/description")
+        name = str(_require(command, "command", where)).lstrip("/")
+        text = str(_require(command, "description", where))
+        if len(name) > MAX_COMMAND:
+            raise ConfigError(f"{where}: имя команды длиннее {MAX_COMMAND} знаков")
+        if not name.replace("_", "").isalnum() or name.lower() != name:
+            raise ConfigError(f"{where}: имя команды — только строчные латинские буквы, цифры и «_»")
+        if len(text) > MAX_COMMAND_DESCRIPTION:
+            raise ConfigError(f"{where}: описание команды длиннее {MAX_COMMAND_DESCRIPTION} знаков")
+        commands.append({"command": name, "description": text})
+
     return Config(
         brand=brand,
         welcome=str(_require(raw, "welcome", "config")).replace("{brand}", brand),
@@ -108,6 +150,10 @@ def load_config(path: Path | str | None = None) -> Config:
         questions=tuple(questions),
         owner_username=str(raw.get("owner_username", "")).lstrip("@"),
         start_button=str(raw.get("start_button") or "Подобрать аромат"),
+        profile_name=profile_name,
+        short_description=short_description,
+        description=description,
+        commands=tuple(commands),
     )
 
 
