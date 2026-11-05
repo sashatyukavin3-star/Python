@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 # Запуск бота одной командой: ./run_bot.sh
-# Настройки берутся из окружения или из файла .env рядом со скриптом.
+# Настройки берутся из .env рядом со скриптом (или из переменных окружения).
 set -euo pipefail
 cd "$(dirname "$0")"
+
+# Первый запуск без .env: создаём из шаблона и подсказываем, что вписать
+if [ ! -f .env ] && [ -f .env.example ]; then
+  cp .env.example .env
+  chmod 600 .env
+  echo "Создал .env из шаблона — впишите токен и id: nano .env"
+  echo
+fi
 
 if [ -f .env ]; then
   set -a
@@ -19,7 +27,7 @@ fi
 if [ -z "${TELEGRAM_TOKEN:-}" ]; then
   echo "Нет TELEGRAM_TOKEN."
   echo "1) @BotFather → /newbot → скопируйте токен"
-  echo "2) создайте .env по образцу .env.example и впишите токен"
+  echo "2) впишите его в .env: nano .env"
   echo "3) запустите снова: ./run_bot.sh"
   exit 1
 fi
