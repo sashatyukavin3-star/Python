@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 from engine import ConfigError, load_config
-from setup_bot import apply_plan, build_plan, encode_multipart, render_plan, verify
+from setup_bot import apply_plan, build_plan, encode_multipart, preflight, render_plan, verify
 
 RAW_DEFAULT = json.loads((Path(__file__).with_name("config.json")).read_text(encoding="utf-8"))
 
@@ -103,6 +103,31 @@ class ApplyTest(unittest.TestCase):
         self.assertEqual(snapshot["username"], "brand_bot")
         self.assertIn("PARFUM", snapshot["name"])
         self.assertEqual(snapshot["menu_button"], {"type": "commands"})
+
+
+class PreflightTest(unittest.TestCase):
+    def test_ok_returns_bot(self):
+        me = preflight(FakeApi())
+        self.assertEqual(me["username"], "brand_bot")
+
+    def test_network_error_is_explained_in_russian(self):
+        class OfflineApi(FakeApi):
+            def call(self, method, **params):
+                raise RuntimeError("<urlopen error TLS/SSL connection has been closed (EOF)>")
+
+        with self.assertRaises(RuntimeError) as ctx:
+            preflight(OfflineApi())
+        self.assertIn("нет связи с api.telegram.org", str(ctx.exception))
+
+    def test_token_error_is_not_masked_as_network(self):
+        class BadTokenApi(FakeApi):
+            def call(self, method, **params):
+                raise RuntimeError("getMe: HTTP 401 Unauthorized")
+
+        with self.assertRaises(RuntimeError) as ctx:
+            preflight(BadTokenApi())
+        self.assertIn("401", str(ctx.exception))
+        self.assertNotIn("нет связи", str(ctx.exception))
 
 
 class MultipartTest(unittest.TestCase):

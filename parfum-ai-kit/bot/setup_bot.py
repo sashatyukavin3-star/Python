@@ -173,6 +173,21 @@ def apply_plan(api, plan: list[dict], verbose: bool = True) -> list[dict]:
     return results
 
 
+def preflight(api) -> dict:
+    """Проверяет связь и токен до того, как что-то менять."""
+    try:
+        me = api.call("getMe")
+    except Exception as error:  # noqa: BLE001
+        message = str(error)
+        if "SSL" in message or "urlopen" in message or "timed out" in message or "Temporary failure" in message:
+            raise RuntimeError(
+                "нет связи с api.telegram.org. Проверьте интернет; если включён VPN — попробуйте без него "
+                "или наоборот. С этого сервера Telegram недоступен, нужен телефон или обычный сервер."
+            ) from error
+        raise
+    return me
+
+
 def verify(api) -> dict:
     """Читает то, что реально стоит в профиле сейчас."""
     me = api.call("getMe")
@@ -246,6 +261,15 @@ def main() -> int:
         return 0
 
     api = Api(token)
+    try:
+        me = preflight(api)
+        print(f"Связь есть, бот @{me.get('username')} (id {me.get('id')}).")
+    except Exception as error:  # noqa: BLE001
+        print(f"✖ {error}")
+        if not args.dry_run:
+            print("Ничего не изменено.")
+            return 2
+
     if args.verify_only:
         try:
             print_snapshot(verify(api))
@@ -261,8 +285,8 @@ def main() -> int:
         print(f"Не применилось: {len(failed)} из {len(results)}.")
         for item in failed:
             print(f"  • {item['title']}: {item['error']}")
-        print("Частые причины: бот заблокирован владельцем, неверный токен, слишком длинный текст,"
-              " неподдерживаемый формат картинки (нужен png/jpg до 10 МБ).")
+        print("Частые причины: нет интернета, бот заблокирован владельцем, неверный токен,"
+              " слишком длинный текст, картинка не png/jpg или больше 10 МБ.")
         return 1
 
     try:
