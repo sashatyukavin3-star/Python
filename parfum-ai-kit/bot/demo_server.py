@@ -277,7 +277,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, fmt: str, *args) -> None:
-        print(f"{self.address_string()} — {fmt % args}")
+        print(f"{self.address_string()} — {fmt % args}", flush=True)
 
 
 def main() -> int:
@@ -290,8 +290,9 @@ def main() -> int:
 
     port = int(os.environ.get("PORT", "8000"))
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"Демо бота «{CONFIG.brand}»: http://0.0.0.0:{port}")
-    print(f"Заявки демо пишутся в {LEADS_FILE}")
+    # flush=True: иначе в Termux и в логах превью строки висят в буфере
+    print(f"Демо бота «{CONFIG.brand}»: http://0.0.0.0:{port}", flush=True)
+    print(f"Заявки демо пишутся в {LEADS_FILE}", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
